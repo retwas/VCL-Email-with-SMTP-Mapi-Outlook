@@ -125,14 +125,15 @@ end;
 
 procedure TMessage.EnvoyerAvecMAPI;
 var
-   MapiMessage  : TMapiMessage;
-   Destinataire : PMapiRecipDesc;
-   Originator   : TMapiRecipDesc;
-   MAPI_Session : Cardinal;
-   MapiResult   : Cardinal;
-   MAPIError    : DWord;
+   MapiMessage    : TMapiMessage;
+   MapiDest       : PMapiRecipDesc;
+   MapiExpediteur : TMapiRecipDesc;
+   MAPI_Session   : Cardinal;
+   MapiResult     : Cardinal;
+   MAPIError      : DWord;
 begin
-   Destinataire := nil;
+   MapiDest := nil;
+   // Fichier := nil
 
    try
       // FillChar permet de remplir une suite d'octets avec une valeur, ici 0
@@ -141,34 +142,34 @@ begin
       MapiMessage.lpszNoteText := PAnsiChar(AnsiString(FsTexte));
 
       // même traitement pour paramétrer l'expéditeur
-      FillChar(Originator, Sizeof(TMapiRecipDesc), 0);
-      Originator.lpszName      := PAnsiChar(AnsiString(FsExpediteur));
-      Originator.lpszAddress   := PAnsiChar(AnsiString(FsExpediteur));
-      MapiMessage.lpOriginator := @Originator;
+      FillChar(MapiExpediteur, Sizeof(TMapiRecipDesc), 0);
+      MapiExpediteur.lpszName    := PAnsiChar(AnsiString(FsExpediteur));
+      MapiExpediteur.lpszAddress := PAnsiChar(AnsiString(FsExpediteur));
+      MapiMessage.lpOriginator   := @MapiExpediteur;
 
       // paramétrage du nombre de destinataire
-      MapiMessage.nRecipCount  := IfThen(FsA <> '', 1) + IfThen(FsCC <> '', 1) + IfThen(FsCCI <> '', 1);
+      MapiMessage.nRecipCount := IfThen(FsA <> '', 1) + IfThen(FsCC <> '', 1) + IfThen(FsCCI <> '', 1);
       // et allocation de mémoire nécessaire
-      Destinataire             := AllocMem(SizeOf(TMapiRecipDesc) * MapiMessage.nRecipCount);
+      MapiDest                := AllocMem(SizeOf(TMapiRecipDesc) * MapiMessage.nRecipCount);
       // paramétrage des destinataire sur notre message MAPI
-      MapiMessage.lpRecips     := Destinataire;
+      MapiMessage.lpRecips    := MapiDest;
 
       if FsA <> '' then
       begin
-         Destinataire.lpszName  	  := PAnsiChar(AnsiString(FsA));
-         Destinataire.ulRecipClass := MAPI_TO;
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FsA));
+         MapiDest.ulRecipClass := MAPI_TO;
       end;
 
       if FsCC <> '' then
       begin
-         Destinataire.lpszName  	  := PAnsiChar(AnsiString(FsCC));
-         Destinataire.ulRecipClass := MAPI_CC;
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FsCC));
+         MapiDest.ulRecipClass := MAPI_CC;
       end;
 
       if FsCCI <> '' then
       begin
-         Destinataire.lpszName  	  := PAnsiChar(AnsiString(FsCCI));
-         Destinataire.ulRecipClass := MAPI_BCC;
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FsCCI));
+         MapiDest.ulRecipClass := MAPI_BCC;
       end;
 
       // pour ajouter un accusé de lecture
@@ -202,7 +203,7 @@ begin
       end;
    finally
       MapiLogOff(MAPI_Session, 0, 0, 0);
-      FreeMem(Destinataire);
+      FreeMem(MapiDest);
    end;
 end;
 
