@@ -3,7 +3,7 @@ object FormEmail: TFormEmail
   Top = 0
   Caption = 'Envoyer des emails avec Delphi'
   ClientHeight = 510
-  ClientWidth = 266
+  ClientWidth = 354
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -12,63 +12,66 @@ object FormEmail: TFormEmail
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
-  OnCloseQuery = FormCloseQuery
-  OnCreate = FormCreate
   PixelsPerInch = 96
   TextHeight = 13
-  object edA: TEdit
+  object edTo: TEdit
     AlignWithMargins = True
     Left = 3
     Top = 30
-    Width = 260
+    Width = 348
     Height = 21
     Align = alTop
-    TabOrder = 0
+    TabOrder = 1
     TextHint = 'A'
+    ExplicitWidth = 260
   end
   object edCC: TEdit
     AlignWithMargins = True
     Left = 3
     Top = 57
-    Width = 260
-    Height = 21
-    Align = alTop
-    TabOrder = 1
-    TextHint = 'CC'
-  end
-  object edCCI: TEdit
-    AlignWithMargins = True
-    Left = 3
-    Top = 84
-    Width = 260
+    Width = 348
     Height = 21
     Align = alTop
     TabOrder = 2
-    TextHint = 'CCI'
+    TextHint = 'CC'
+    ExplicitWidth = 260
   end
-  object edObjet: TEdit
+  object edBCC: TEdit
     AlignWithMargins = True
     Left = 3
-    Top = 111
-    Width = 260
+    Top = 84
+    Width = 348
     Height = 21
     Align = alTop
     TabOrder = 3
+    TextHint = 'CCI'
+    ExplicitWidth = 260
+  end
+  object edObject: TEdit
+    AlignWithMargins = True
+    Left = 3
+    Top = 111
+    Width = 348
+    Height = 21
+    Align = alTop
+    TabOrder = 4
     TextHint = 'Objet'
+    ExplicitWidth = 260
   end
   object Memo: TMemo
     AlignWithMargins = True
     Left = 3
     Top = 192
-    Width = 260
+    Width = 348
     Height = 185
     Align = alClient
-    TabOrder = 4
+    TabOrder = 7
+    ExplicitWidth = 260
   end
   object RadioGroup: TRadioGroup
     Left = 0
     Top = 380
-    Width = 266
+    Width = 354
     Height = 105
     Align = alBottom
     Caption = 'Type d'#39'envoi'
@@ -77,48 +80,53 @@ object FormEmail: TFormEmail
       'SMTP'
       'Outlook'
       'MAPI')
-    TabOrder = 5
+    TabOrder = 8
+    ExplicitWidth = 266
   end
   object btnEnvoyer: TButton
     Left = 0
     Top = 485
-    Width = 266
+    Width = 354
     Height = 25
     Align = alBottom
     Caption = 'Envoyer'
-    TabOrder = 6
+    TabOrder = 9
     OnClick = btnEnvoyerClick
+    ExplicitWidth = 266
   end
-  object edMotDePasse: TEdit
+  object edPassword: TEdit
     AlignWithMargins = True
     Left = 3
     Top = 165
-    Width = 260
+    Width = 348
     Height = 21
     Align = alTop
     PasswordChar = '*'
-    TabOrder = 7
+    TabOrder = 6
     Text = '123456'
     TextHint = 'Objet'
+    ExplicitWidth = 260
   end
-  object edIdentifiant: TEdit
+  object edLogin: TEdit
     AlignWithMargins = True
     Left = 3
     Top = 138
-    Width = 260
+    Width = 348
     Height = 21
     Align = alTop
-    TabOrder = 8
+    TabOrder = 5
     TextHint = 'Identifiant'
+    ExplicitWidth = 260
   end
-  object edExpediteur: TEdit
+  object edSender: TEdit
     AlignWithMargins = True
     Left = 3
     Top = 3
-    Width = 260
+    Width = 348
     Height = 21
     Align = alTop
-    TabOrder = 9
+    TabOrder = 0
     TextHint = 'Expediteur'
+    ExplicitWidth = 260
   end
 end

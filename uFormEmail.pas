@@ -7,54 +7,65 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ExtCtrls;
 
 type
-   TSendType = (stSMTP, stMAPI, stOutlook);
-
-   TMessage = class
-   strict private
-      FsA           : string;
-      FsCC          : string;
-      FsCCI         : string;
-      FsObjet       : string;
-      FsTexte       : string;
-      FstMode       : TSendType;
-      FsIdentifiant : string;
-      FsMotDePasse  : string;
-      FsExpediteur  : string;
-
-      procedure EnvoyerAvecSMTP;
-      procedure EnvoyerAvecOutlook;
-      procedure EnvoyerAvecMAPI;
-   public
-      procedure Envoyer;
-
-      property sA          : string    read FsA             write FsA;
-      property sCC         : string    read FsCC            write FsCC;
-      property sCCI        : string    read FsCCI           write FsCCI;
-      property sObjet      : string    read FsObjet         write FsObjet;
-      property sTexte      : string    read FsTexte         write FsTexte;
-      property stMode      : TSendType read FstMode         write FstMode;
-      property sIdentifiant: string    read FsIdentifiant   write FsIdentifiant;
-      property sMotDePasse : string    read FsMotDePasse    write FsMotDePasse;
-      property sExpediteur : string    read FsExpediteur    write FsExpediteur;
+   TDataMessage = record
+      SendTo:      string;
+      SendCC:      string;
+      SendBCC:     string;
+      Sender:      string;
+      MailObject:  string;
+      MailMessage: string;
    end;
 
+   IMessage = interface
+   ['{E76ABC78-18BF-48C5-9D48-21CDFC56A4C1}']
+      /// <summary>Permet d'envoyer un message en SMTP, en MAPI, ou avec Outlook</summary>
+      procedure Send;
+      /// <summary>Permet de renseigner un TDataMessage contenant les données de l'email à envoyer</summary>
+      procedure SetDataMessage(aDataMessage: TDataMessage);
+   end;
+
+   TMessageMapi = class(TInterfacedObject, IMessage)
+   strict private
+      FDataMessage: TDataMessage;
+   public
+      procedure Send;
+      procedure SetDataMessage(aDataMessage: TDataMessage);
+   end;
+
+   TMessageOutlook = class(TInterfacedObject, IMessage)
+   strict private
+      FDataMessage: TDataMessage;
+   public
+      procedure Send;
+      procedure SetDataMessage(aDataMessage: TDataMessage);
+   end;
+
+   TMessageSMTP = class(TInterfacedObject, IMessage)
+   strict private
+      FDataMessage: TDataMessage;
+      FLogin:       string;
+      FPassword:    string;
+      FServer:      string;
+      FPort:        integer;
+   public
+      constructor Create(aLogin, aPassword: string);
+
+      procedure Send;
+      procedure SetDataMessage(aDataMessage: TDataMessage);
+   end;
 
   TFormEmail = class(TForm)
-    edA: TEdit;
+    edTo: TEdit;
     edCC: TEdit;
-    edCCI: TEdit;
-    edObjet: TEdit;
+    edBCC: TEdit;
+    edObject: TEdit;
     Memo: TMemo;
     RadioGroup: TRadioGroup;
     btnEnvoyer: TButton;
-    edMotDePasse: TEdit;
-    edIdentifiant: TEdit;
-    edExpediteur: TEdit;
-    procedure FormCreate(Sender: TObject);
-    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    edPassword: TEdit;
+    edLogin: TEdit;
+    edSender: TEdit;
     procedure btnEnvoyerClick(Sender: TObject);
-  private
-    FMessage : TMessage;
   public
     { Déclarations publiques }
   end;
@@ -65,12 +76,21 @@ var
 implementation
 
 uses
+   // SMTP
    IdSMTP, IdExplicitTLSClientServerBase, IdMessage, IdSSLOpenSSL,
+   // Outlook
    System.Win.ComObj,
+   // MAPI
    Winapi.Mapi,
    Math;
 
+type
+   TMessageSMTPError    = class(Exception);
+   TMessageOutlookError = class(Exception);
+   TMessageMAPIError    = class(Exception);
+
 const
+   // correspondance avec le RadioGroup
    CST_SMTP    = 0;
    CST_OUTLOOK = 1;
    CST_MAPI    = 2;
@@ -78,52 +98,141 @@ const
 {$R *.dfm}
 
 procedure TFormEmail.btnEnvoyerClick(Sender: TObject);
+var
+   SendMessage: IMessage;
+   DataMessage: TDataMessage;
+   Cursor     : TCursor;
 begin
-   FMessage.sA           := edA.Text;
-   FMessage.sCC          := edCC.Text;
-   FMessage.sCCI         := edCCI.Text;
-   FMessage.sObjet       := edObjet.Text;
-   FMessage.sTexte       := Memo.Text;
-   FMessage.sIdentifiant := edIdentifiant.Text;
-   FMessage.sMotDePasse  := edMotDePasse.Text;
-   FMessage.sExpediteur  := edExpediteur.Text;
+   Cursor := Screen.Cursor;
 
-   if RadioGroup.ItemIndex = CST_SMTP then
-      FMessage.stMode := stSMTP
-   else if RadioGroup.ItemIndex = CST_OUTLOOK then
-      FMessage.stMode := stOutlook
-   else
-      FMessage.stMode := stMAPI;
+   try
+      Screen.Cursor := crHourGlass;
 
-   FMessage.Envoyer;
+      try
+         case RadioGroup.ItemIndex of
+            CST_SMTP    : SendMessage := TMessageSMTP.Create(edLogin.Text, edPassword.Text);
+            CST_OUTLOOK : SendMessage := TMessageOutlook.Create;
+            else
+               SendMessage := TMessageMapi.Create;
+         end;
+
+         DataMessage.SendTo      := edTo.Text;
+         DataMessage.SendCC      := edCC.Text;
+         DataMessage.SendBCC     := edBCC.Text;
+         DataMessage.Sender      := edSender.Text;
+         DataMessage.MailObject  := edObject.Text;
+         DataMessage.MailMessage := Memo.Text;
+
+         SendMessage.SetDataMessage(DataMessage);
+         SendMessage.Send;
+      except
+         on E : Exception do
+            MessageDlg('Erreur lors de l''envoi de l''email.' + #10#13 + e.Message, mtError, [mbOK], 0);
+      end;
+   finally
+      Screen.Cursor := Cursor;
+   end;
 end;
 
-procedure TFormEmail.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+{ TMessageSMTP }
+
+constructor TMessageSMTP.Create(aLogin, aPassword : string);
 begin
-   if CanClose then
-      FreeAndNil(FMessage);
+   inherited Create;
+
+   FLogin    := aLogin;
+   FPassword := aPassword;
+   FServer   := 'smtp.office365.com';
+   FPort     := 587;
 end;
 
-procedure TFormEmail.FormCreate(Sender: TObject);
+procedure TMessageSMTP.Send;
+var
+   IdSMTP    : TIdSMTP;
+   IdSSLIO   : TIdSSLIOHandlerSocketOpenSSL;
+   IdMessage : TIdMessage;
 begin
-   FMessage             := TMessage.Create;
-   RadioGroup.ItemIndex := CST_SMTP;
+   // création des composants Indy
+   IdSMTP    := TIdSMTP.Create(nil);
+   IdMessage := TIdMessage.Create(nil);
+   IdSSLIO   := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
+
+   try
+      // adresse et port du serveur SMTP
+      IdSMTP.AuthType := satDefault;
+      IdSMTP.Host     := FServer;
+      IdSMTP.Port     := FPort;
+
+      // utilisation du mode sécurisé (ou pas si l'envoi en anonyme est autorisé)
+      if (FLogin <> '') and (FPassword <> '') then
+      begin
+         IdSSLIO.SSLOptions.Method := sslvTLSv1;
+         IdSMTP.Username  := FLogin;
+         IdSMTP.Password  := FPassword;
+         IdSMTP.IOHandler := IdSSLIO;
+         IdSMTP.UseTLS    := utUseExplicitTLS;
+      end;
+
+      // connexion au serveur
+      try
+         IdSMTP.Connect;
+      except
+         on e : Exception do
+            raise TMessageSMTPError.Create('Erreur de connexion au serveur SMTP' + #10#13 + e.Message);
+      end;
+
+      IdMessage.Clear;
+
+      // paramétrage de l'expéditeur
+      IdMessage.From.Text           := FDataMessage.Sender;
+      IdMessage.ReplyTo.Add.Address := FDataMessage.Sender;
+
+      // ajout des destinataires
+      if FDataMessage.SendTo <> '' then
+         IdMessage.Recipients.Add.Address := FDataMessage.SendTo;
+
+      if FDataMessage.SendCC <> '' then
+         IdMessage.CCList.Add.Address     := FDataMessage.SendCC;
+
+      if FDataMessage.SendBCC <> '' then
+         IdMessage.BccList.Add.Address    := FDataMessage.SendBCC;
+
+      // objet du message
+      IdMessage.Subject := FDataMessage.MailObject;
+
+      // paramétrage de la date et de la priorité
+      IdMessage.Date     := Now;
+      IdMessage.Priority := mpNormal;
+
+      // il est possible de paramétrer un l'accusé de lecture
+      // idMessage.ReceiptRecipient.Address := adresse de l'expediteur;
+
+      // corps du message
+      IdMessage.Body.Text := FDataMessage.MailMessage;
+
+      try
+         IdSMTP.Send(IdMessage);
+      except
+         on e : Exception do
+            raise TMessageSMTPError.Create('Erreur lors de l''envoi de l''email.' + #10#13 + e.Message);
+      end;
+   finally
+      IdSMTP.Disconnect;
+
+      FreeAndNil(IdSSLIO);
+      FreeAndNil(IdMessage);
+      FreeAndNil(IdSMTP);
+   end;
 end;
 
-{ TMessage }
-
-procedure TMessage.Envoyer;
+procedure TMessageSMTP.SetDataMessage(aDataMessage: TDataMessage);
 begin
-   if FstMode = stSMTP then
-      EnvoyerAvecSMTP
-   else
-      if FstMode = stOutlook then
-         EnvoyerAvecOutlook
-      else
-         EnvoyerAvecMAPI;
+   FDataMessage := aDataMessage;
 end;
 
-procedure TMessage.EnvoyerAvecMAPI;
+{ TMessageMapi }
+
+procedure TMessageMapi.Send;
 var
    MapiMessage    : TMapiMessage;
    MapiDest       : PMapiRecipDesc;
@@ -133,42 +242,41 @@ var
    MAPIError      : DWord;
 begin
    MapiDest := nil;
-   // Fichier := nil
 
    try
       // FillChar permet de remplir une suite d'octets avec une valeur, ici 0
       FillChar(MapiMessage, Sizeof(TMapiMessage), 0);
-      MapiMessage.lpszSubject  := PAnsiChar(AnsiString(FsObjet));
-      MapiMessage.lpszNoteText := PAnsiChar(AnsiString(FsTexte));
+      MapiMessage.lpszSubject  := PAnsiChar(AnsiString(FDataMessage.MailObject));
+      MapiMessage.lpszNoteText := PAnsiChar(AnsiString(FDataMessage.MailMessage));
 
       // même traitement pour paramétrer l'expéditeur
       FillChar(MapiExpediteur, Sizeof(TMapiRecipDesc), 0);
-      MapiExpediteur.lpszName    := PAnsiChar(AnsiString(FsExpediteur));
-      MapiExpediteur.lpszAddress := PAnsiChar(AnsiString(FsExpediteur));
+      MapiExpediteur.lpszName    := PAnsiChar(AnsiString(FDataMessage.Sender));
+      MapiExpediteur.lpszAddress := PAnsiChar(AnsiString(FDataMessage.Sender));
       MapiMessage.lpOriginator   := @MapiExpediteur;
 
       // paramétrage du nombre de destinataire
-      MapiMessage.nRecipCount := IfThen(FsA <> '', 1) + IfThen(FsCC <> '', 1) + IfThen(FsCCI <> '', 1);
-      // et allocation de mémoire nécessaire
+      MapiMessage.nRecipCount := IfThen(FDataMessage.SendTo <> '', 1) + IfThen(FDataMessage.SendCC <> '', 1) + IfThen(FDataMessage.SendBCC <> '', 1);
+      // et allocation de l mémoire nécessaire
       MapiDest                := AllocMem(SizeOf(TMapiRecipDesc) * MapiMessage.nRecipCount);
       // paramétrage des destinataire sur notre message MAPI
       MapiMessage.lpRecips    := MapiDest;
 
-      if FsA <> '' then
+      if FDataMessage.SendTo <> '' then
       begin
-         MapiDest.lpszName     := PAnsiChar(AnsiString(FsA));
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FDataMessage.SendTo));
          MapiDest.ulRecipClass := MAPI_TO;
       end;
 
-      if FsCC <> '' then
+      if FDataMessage.SendCC <> '' then
       begin
-         MapiDest.lpszName     := PAnsiChar(AnsiString(FsCC));
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FDataMessage.SendCC));
          MapiDest.ulRecipClass := MAPI_CC;
       end;
 
-      if FsCCI <> '' then
+      if FDataMessage.SendBCC <> '' then
       begin
-         MapiDest.lpszName     := PAnsiChar(AnsiString(FsCCI));
+         MapiDest.lpszName     := PAnsiChar(AnsiString(FDataMessage.SendBCC));
          MapiDest.ulRecipClass := MAPI_BCC;
       end;
 
@@ -193,13 +301,13 @@ begin
 
          // liste des erreurs en MAPI : http://support.microsoft.com/kb/119647
          if MAPIError = SUCCESS_SUCCESS then
-            ShowMessage('Message envoyé avec MAPI')
+            ShowMessage('Message envoyé avec MAPI.')
          else
-            ShowMessage('Erreur MAPI avec le code ' + MapiResult.ToString);
+            raise TMessageMAPIError.Create('Erreur MAPI avec le code ' + MapiResult.ToString + '.');
       end
       else
       begin
-         ShowMessage('Erreur MAPI avec le code ' + MapiResult.ToString);
+         raise TMessageMAPIError.Create('Erreur MAPI avec le code ' + MapiResult.ToString + '.');
       end;
    finally
       MapiLogOff(MAPI_Session, 0, 0, 0);
@@ -207,7 +315,14 @@ begin
    end;
 end;
 
-procedure TMessage.EnvoyerAvecOutlook;
+procedure TMessageMapi.SetDataMessage(aDataMessage: TDataMessage);
+begin
+   FDataMessage := aDataMessage;
+end;
+
+{ TMessageOutlook }
+
+procedure TMessageOutlook.Send;
 const
    // constantes utilisée par outlook
    // https://msdn.microsoft.com/en-us/library/office/aa219371(v=office.11).aspx
@@ -225,7 +340,7 @@ const
    CSTL_olFormatRichText    = $00000003;
 
    // fonction permettant de recupérer ou de créer une instance de Outlook
-   function GetOutlookApp(var bFind : boolean) : OLEVariant;
+   function GetOutlook(var bFind : boolean) : OLEVariant;
    begin
       bFind  := False;
       Result := Unassigned;
@@ -253,10 +368,13 @@ var
    vDestinataire   : Variant;
 begin
    try
-      ovOutlook := GetOutlookApp(bTrouve);
+      ovOutlook := GetOutlook(bTrouve);
 
       if not bTrouve then
-         Showmessage('Application Outlook non trouvée.')
+      begin
+         // si outlook est fermé ou ouvert en tant que administrateur
+         raise TMessageOutlookError.Create('Application Outlook non trouvée.')
+      end
       else
       begin
          // création d'un email
@@ -271,28 +389,28 @@ begin
          ovMailItem.BodyFormat := CSTL_olFormatHTML;
 
          // ajout des destinataires
-         if FsA <> '' then
+         if FDataMessage.SendTo <> '' then
          begin
-            vDestinataire      := ovMailItem.Recipients.Add(FsA);
+            vDestinataire      := ovMailItem.Recipients.Add(FDataMessage.SendTo);
             vDestinataire.Type := CSTL_olTo;
          end;
 
-         if FsCC <> '' then
+         if FDataMessage.SendCC <> '' then
          begin
-            vDestinataire      := ovMailItem.Recipients.Add(FsCC);
+            vDestinataire      := ovMailItem.Recipients.Add(FDataMessage.SendCC);
             vDestinataire.Type := CSTL_olCC;
          end;
 
-         if FsCCI <> '' then
+         if FDataMessage.SendBCC <> '' then
          begin
-            vDestinataire      := ovMailItem.Recipients.Add(FsCCI);
+            vDestinataire      := ovMailItem.Recipients.Add(FDataMessage.SendBCC);
             vDestinataire.Type := CSTL_olBCC;
          end;
 
          // ajouter un accusé de lecture
          // ovMailItem.ReadReceiptRequested := True;
 
-         ovMailItem.Subject := FsObjet;
+         ovMailItem.Subject := FDataMessage.MailObject;
 
          // il est possible d'ouvrir le message sans l'afficher
          // ceci permet par exemple de récupérer la signature
@@ -303,7 +421,7 @@ begin
          sSignature := ovMailItem.HTMLBody;
 
          // concaténation du texte du message et de la signature
-         ovMailItem.HTMLBody := FsTexte + sSignature;
+         ovMailItem.HTMLBody := FDataMessage.MailMessage + sSignature;
 
          // il est possible d'afficher l'email avant de l'envoyer avec ovMailItem.Display;
          ovMailItem.Send;
@@ -313,84 +431,9 @@ begin
    end;
 end;
 
-procedure TMessage.EnvoyerAvecSMTP;
-var
-   IdSMTP    : TIdSMTP;
-   IdSSLIO   : TIdSSLIOHandlerSocketOpenSSL;
-   IdMessage : TIdMessage;
+procedure TMessageOutlook.SetDataMessage(aDataMessage: TDataMessage);
 begin
-   // création des composants Indy
-   idSMTP    := TIdSMTP.Create(nil);
-   idMessage := TIdMessage.Create(nil);
-   idSSLIO   := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
-   try
-      // adresse et port du serveur SMTP
-      idSMTP.AuthType := satDefault;
-      idSMTP.Host     := 'smtp.office365.com';
-      idSMTP.Port     := 587;
-
-      // utilisation du mode sécurisé
-      if (FsIdentifiant <> '') and (FsMotDePasse <> '') then
-      begin
-         idSSLIO.SSLOptions.Method := sslvTLSv1;
-         idSMTP.Username  := FsIdentifiant;
-         idSMTP.Password  := FsMotDePasse;
-         IdSMTP.IOHandler := idSSLIO;
-         idSMTP.UseTLS    := utUseExplicitTLS;
-      end;
-
-      // connexion au serveur
-      try
-         idSMTP.Connect;
-      except
-         on e : Exception do
-         begin
-            raise Exception.Create('SocketError : ' + e.Message);
-         end;
-      end;
-
-      idMessage.Clear;
-
-      // paramétrage de l'expéditeur
-      idMessage.From.Text           := FsExpediteur;
-      idMessage.ReplyTo.Add.Address := FsExpediteur;
-
-      // ajout des destinataires
-      if FsA <> '' then
-         idMessage.Recipients.Add.Address := FsA;
-
-      if FsCC <> '' then
-         idMessage.CCList.Add.Address     := FsCC;
-
-      if FsCCI <> '' then
-         idMessage.BccList.Add.Address    := FsCCI;
-
-      // objet du message
-      IdMessage.Subject := FsObjet;
-
-      // paramétrage de la date et de la priorité
-      idMessage.Date     := Now;
-      IdMessage.Priority := mpNormal;
-
-      // il est possible de paramétrer un l'accusé de lecture
-      // idMessage.ReceiptRecipient.Address := adresse de l'expediteur;
-
-      // corps du message
-      idMessage.Body.Text := FsTexte;
-
-      try
-         IdSMTP.Send(IdMessage);
-      except
-         on e : Exception do
-            raise Exception.Create('Erreur SMTP : ' + e.Message);
-      end;
-   finally
-      IdSMTP.Disconnect;
-
-      FreeAndNil(idSSLIO);
-      FreeAndNil(IdMessage);
-      FreeAndNil(IdSMTP);
-   end;
+   FDataMessage := aDataMessage;
 end;
 
 end.
