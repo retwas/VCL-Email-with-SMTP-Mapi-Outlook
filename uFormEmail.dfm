@@ -12,6 +12,7 @@ object FormEmail: TFormEmail
   Font.Style = []
   OldCreateOrder = False
   Position = poScreenCenter
+  OnShow = FormShow
   PixelsPerInch = 96
   TextHeight = 13
   object edTo: TEdit
@@ -23,7 +24,6 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 1
     TextHint = 'A'
-    ExplicitWidth = 260
   end
   object edCC: TEdit
     AlignWithMargins = True
@@ -34,7 +34,6 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 2
     TextHint = 'CC'
-    ExplicitWidth = 260
   end
   object edBCC: TEdit
     AlignWithMargins = True
@@ -45,7 +44,6 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 3
     TextHint = 'CCI'
-    ExplicitWidth = 260
   end
   object edObject: TEdit
     AlignWithMargins = True
@@ -56,7 +54,6 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 4
     TextHint = 'Objet'
-    ExplicitWidth = 260
   end
   object Memo: TMemo
     AlignWithMargins = True
@@ -66,7 +63,6 @@ object FormEmail: TFormEmail
     Height = 185
     Align = alClient
     TabOrder = 7
-    ExplicitWidth = 260
   end
   object RadioGroup: TRadioGroup
     Left = 0
@@ -81,7 +77,6 @@ object FormEmail: TFormEmail
       'Outlook'
       'MAPI')
     TabOrder = 8
-    ExplicitWidth = 266
   end
   object btnEnvoyer: TButton
     Left = 0
@@ -92,7 +87,6 @@ object FormEmail: TFormEmail
     Caption = 'Envoyer'
     TabOrder = 9
     OnClick = btnEnvoyerClick
-    ExplicitWidth = 266
   end
   object edPassword: TEdit
     AlignWithMargins = True
@@ -105,7 +99,6 @@ object FormEmail: TFormEmail
     TabOrder = 6
     Text = '123456'
     TextHint = 'Objet'
-    ExplicitWidth = 260
   end
   object edLogin: TEdit
     AlignWithMargins = True
@@ -116,7 +109,6 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 5
     TextHint = 'Identifiant'
-    ExplicitWidth = 260
   end
   object edSender: TEdit
     AlignWithMargins = True
@@ -127,6 +119,5 @@ object FormEmail: TFormEmail
     Align = alTop
     TabOrder = 0
     TextHint = 'Expediteur'
-    ExplicitWidth = 260
   end
 end
